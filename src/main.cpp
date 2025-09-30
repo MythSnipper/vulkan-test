@@ -34,6 +34,7 @@ class HelloTriangleApplication{
 
     VkInstance instance;
     VkDebugUtilsMessengerEXT debugMessenger;
+    VkPhysicalDevice physicalDevice;
     VkDevice device;
 
     const std::vector<const char*> validationLayers = {
@@ -185,7 +186,7 @@ class HelloTriangleApplication{
         }
     }
     void pickPhysicalDevice(){
-        VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
+        physicalDevice = VK_NULL_HANDLE;
         uint32_t deviceCount = 0;
         vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
         if(deviceCount == 0){
@@ -250,6 +251,19 @@ class HelloTriangleApplication{
         return indices;
     }
     void createLogicalDevice(){
+        QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
+
+        VkDeviceQueueCreateInfo queueCreateInfo{};
+        queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+        queueCreateInfo.queueFamilyIndex = indices.graphicsFamily.value();
+        queueCreateInfo.queueCount = 1;
+
+        float queuePriority = 1.0f;
+        queueCreateInfo.pQueuePriorities = &queuePriority;
+
+        VkPhysicalDeviceFeatures deviceFeatures{};
+        VkDeviceCreateInfo createInfo{};
+        createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
         
     }
 
