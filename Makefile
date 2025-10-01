@@ -36,11 +36,22 @@ OBJ = obj/main.o
 TARGET = build/main
 TARGET_WIN = build/main.exe
 
+makeemptyfolders:
+	mkdir -p build
+	mkdir -p obj
+
+
 linux: $(TARGET) clean_objs
 $(TARGET): objs
 	$(CC) $(OBJ) -o $(TARGET) $(LDFLAGS)
 objs:
 	$(CC) $(CFLAGS) -c src/main.cpp -o obj/main.o
+
+shaders:
+	glslc src/shader.vert -o obj/vert.spv
+	glslc src/shader.frag -o obj/frag.spv
+
+
 
 
 windows: $(TARGET_WIN) clean_objs
@@ -61,7 +72,7 @@ run_win:
 
 
 clean_objs:
-	rm obj/main.o
+	rm obj/*
 
 clean:
 	rm -rf build/*
