@@ -36,6 +36,9 @@ class HelloTriangleApplication{
     VkDebugUtilsMessengerEXT debugMessenger;
     VkPhysicalDevice physicalDevice;
     VkDevice device;
+    VkQueue graphicsQueue;
+    VkSurfaceKHR surface;
+
 
     const std::vector<const char*> validationLayers = {
         "VK_LAYER_KHRONOS_validation"
@@ -160,10 +163,7 @@ class HelloTriangleApplication{
                 VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT: behavior that is not necessarily error but very likely a bug in the app
                 VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT: behavior that is invalid and may cause crashes
         */
-        if(messageSeverity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT){
-            std::cerr << "\tValidation layer: " << pCallbackData->pMessage << "\n";
-        }
-
+        std::cerr << "\tValidation layer: " << pCallbackData->pMessage << "\n";
         return VK_FALSE;
     }
     void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo) {
@@ -264,9 +264,26 @@ class HelloTriangleApplication{
         VkPhysicalDeviceFeatures deviceFeatures{};
         VkDeviceCreateInfo createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-        
-    }
+        createInfo.pQueueCreateInfos = &queueCreateInfo;
+        createInfo.queueCreateInfoCount = 1;
+        createInfo.pEnabledFeatures = &deviceFeatures;
 
+        createInfo.enabledExtensionCount = 0;
+        if(enableValidationLayers){
+            createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
+            createInfo.ppEnabledExtensionNames = validationLayers.data();
+        }
+        else{
+            createInfo.enabledLayerCount = 0;
+        }
+
+        VkResult result = vkCreateDevice(physicalDevice, &createInfo, nullptr, &device);
+        if(result != VK_SUCCESS){
+            throw std::runtime_error("failed to create logical device");
+        }
+
+        vkGetDeviceQueue(device, indices.graphicsFamily.value(), 0, &graphicsQueue);
+    }
 
 
 
@@ -286,8 +303,7 @@ class HelloTriangleApplication{
         if(enableValidationLayers){
             DestroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
         }
-
-
+        vkDestroyDevice(device, nullptr);
         vkDestroyInstance(instance, nullptr);
 
         glfwDestroyWindow(window);
