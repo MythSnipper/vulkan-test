@@ -1,4 +1,4 @@
-.PHONY: linux objs run clean_objs clean test
+.PHONY: linux objs run clean_objs clean test shaders
 
 CC = g++
 CFLAGS = -std=c++23 \
@@ -39,6 +39,7 @@ TARGET_WIN = build/main.exe
 makeemptyfolders:
 	mkdir -p build
 	mkdir -p obj
+	mkdir -p shaders
 
 
 linux: $(TARGET) clean_objs
@@ -48,8 +49,8 @@ objs:
 	$(CC) $(CFLAGS) -c src/main.cpp -o obj/main.o
 
 shaders:
-	glslc src/shader.vert -o obj/vert.spv
-	glslc src/shader.frag -o obj/frag.spv
+	glslc src/shaders/shader.vert -o shaders/vert.spv
+	glslc src/shaders/shader.frag -o shaders/frag.spv
 
 
 
@@ -72,7 +73,7 @@ run_win:
 
 
 clean_objs:
-	rm obj/*
+	rm -r obj/*
 
 clean:
 	rm -rf build/*
