@@ -30,10 +30,13 @@ class HelloTriangleApplication{
 
     private:
 
+    //GLFW information
     GLFWwindow* window;
+    //width and height of window
     const uint32_t WIDTH = 800;
     const uint32_t HEIGHT = 600;
 
+    //enable validation layers unless NO DEBUG
     #ifdef NDEBUG
         const bool enableValidationLayers = false;
     #else
@@ -969,3 +972,5 @@ int main(){
 
     return EXIT_SUCCESS;
 }
+
+
