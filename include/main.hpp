@@ -6,18 +6,14 @@
 #include <GLFW/glfw3.h>
 
 
-
 #include <iostream>
 #include <stdexcept>
-#include <cstdlib>
 #include <vector>
 #include <cstring>
-#include <optional>
-#include <set>
-#include <cstdint>
-#include <limits>
-#include <algorithm>
-#include <fstream>
+
+
+
+
 
 
 
