@@ -17,12 +17,10 @@ void DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT
 
 
 
-
-
 class HelloTriangleApplication{
     public:
     void run(){
-        initWindow();
+        initWindow(); //create GLFW window
         initVulkan();
         mainLoop();
         cleanup();
@@ -30,11 +28,11 @@ class HelloTriangleApplication{
 
     private:
 
-    //GLFW information
+    //GLFW window information
     GLFWwindow* window;
-    //width and height of window
-    const uint32_t WIDTH = 800;
-    const uint32_t HEIGHT = 600;
+    const uint32_t GLFW_WINDOW_WIDTH = 800;
+    const uint32_t GLFW_WINDOW_HEIGHT = 600;
+    const char* GLFW_WINDOW_TITLE = "vulkan test nuck";
 
     //enable validation layers unless NO DEBUG
     #ifdef NDEBUG
@@ -43,6 +41,8 @@ class HelloTriangleApplication{
         const bool enableValidationLayers = true;
     #endif
 
+    //Vulkan stuff
+    //handle to Vulkan instance
     VkInstance instance;
     VkDebugUtilsMessengerEXT debugMessenger;
     VkPhysicalDevice physicalDevice;
@@ -66,8 +66,6 @@ class HelloTriangleApplication{
     VkFence inFlightFence;
 
 
-
-
     const std::vector<const char*> validationLayers = {
         "VK_LAYER_KHRONOS_validation"
     };
@@ -77,23 +75,25 @@ class HelloTriangleApplication{
 
 
 
+    //creates GLFW window
     void initWindow(){
-        //glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_WAYLAND);
-        //glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_X11);
+        //detect display server protocol if not running on windows
         #ifndef _WIN32
             std::cout << "GLFW platform: " << ((glfwGetPlatform()) ? "wayland" : "X11") << "\n";
         #endif
-
+        //init GLFW library
         if(!glfwInit()){
             throw std::runtime_error("failed to initialize GLFW");
         }
+        //hint and create window, no api for vulkan
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
         glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
-        window = glfwCreateWindow(WIDTH, HEIGHT, "Vulkan test nuck", nullptr, nullptr);
+        window = glfwCreateWindow(GLFW_WINDOW_WIDTH, GLFW_WINDOW_HEIGHT, GLFW_WINDOW_TITLE, nullptr, nullptr);
         if(!window){
             throw std::runtime_error("GLFW Failed to create window");
         }
     }
+    //creates vulkan instance
     void createInstance(){
         if(enableValidationLayers && !checkValidationLayerSupport()){
             throw std::runtime_error("validation layer required, but not available");
@@ -105,14 +105,17 @@ class HelloTriangleApplication{
           << VK_VERSION_MINOR(instanceVersion) << "."
           << VK_VERSION_PATCH(instanceVersion) << "\n";
 
+        //info about our app provided to vulkan
         VkApplicationInfo appInfo{};
-        appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-        appInfo.pApplicationName = "Hello Triangle";
+        appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO; ///type
+        appInfo.pApplicationName = "Hello Triangle"; 
         appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
         appInfo.pEngineName = "No Engine";
         appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
         appInfo.apiVersion = VK_MAKE_API_VERSION(0, 1, 0, 0);
+        appInfo.pNext = nullptr; //can point to extension information
 
+        //not optional struct, tells vulkan which global extensions and validation layers are used
         VkInstanceCreateInfo createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
         createInfo.pApplicationInfo = &appInfo;
@@ -897,6 +900,12 @@ class HelloTriangleApplication{
 
 
 
+
+
+
+
+
+
     void initVulkan(){
         std::cout << ((enableValidationLayers) ? "Validation Layers Enabled\n" : "Validation Layers Disabled\n");
         createInstance();
@@ -943,7 +952,7 @@ class HelloTriangleApplication{
         vkDestroySurfaceKHR(instance, surface, nullptr);
         vkDestroyInstance(instance, nullptr);
 
-        
+        //clean up GLFW window and GLFW
         glfwDestroyWindow(window);
         glfwTerminate();
     }
@@ -953,13 +962,14 @@ class HelloTriangleApplication{
 };
 
 int main(){
+    //detect if we are running on windows or linux
     #ifdef _WIN32
         std::cout << "RUNNING ON WINDOWS\n";
     #else
         std::cout << "RUNNING ON LINUX\n";
     #endif
 
-    
+    //run vulkan app
     HelloTriangleApplication app;
 
     try{
