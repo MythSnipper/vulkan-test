@@ -1,5 +1,27 @@
 #include <main.hpp>
 
+//creates VkDebugUtilsMessengerEXT object
+VkResult CreateDebugUtilsMessengerEXT(VkInstance instance, const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkDebugUtilsMessengerEXT* pDebugMessenger){
+    auto func = (PFN_vkCreateDebugUtilsMessengerEXT) vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
+    if(func != nullptr){
+        return func(instance, pCreateInfo, pAllocator, pDebugMessenger);
+    }
+    else{
+        return VK_ERROR_EXTENSION_NOT_PRESENT;
+    }
+}
+//destroys VkDebugUtilsMessengerEXT object
+void DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT debugMessenger, const VkAllocationCallbacks* pAllocator){
+    auto func = (PFN_vkDestroyDebugUtilsMessengerEXT) vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT");
+    if(func != nullptr){
+        func(instance, debugMessenger, pAllocator);
+    }
+}
+
+
+
+
+
 
 class HelloTriangleApplication{
     public:
@@ -9,6 +31,7 @@ class HelloTriangleApplication{
         initVulkan();
         mainLoop();
         cleanup();
+        std::cout << "The End.\n";
     }
 
     private:
@@ -44,7 +67,12 @@ class HelloTriangleApplication{
     //Vulkan stuff
     //handle to Vulkan instance
     VkInstance instance;
-    
+    //handle for debug callback function
+    VkDebugUtilsMessengerEXT debugMessenger;
+
+
+
+
 
     //creates GLFW window
     void initWindow(){
@@ -108,13 +136,22 @@ class HelloTriangleApplication{
         createInfo.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
         createInfo.ppEnabledExtensionNames = extensions.data();
         
+        //debug messenger create info
+        VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo{};
         //if validation layers enabled, add validation layer info to create info
         if(enableValidationLayers){
             createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());//number of validation layers enabled
             createInfo.ppEnabledLayerNames = validationLayers.data();
+
+            //fill debug messenger create info and make instance create info point to it
+            //This will enable debugging in the createInstance and destroyInstance calls
+            populateDebugMessengerCreateInfo(debugCreateInfo);
+            createInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT*) &debugCreateInfo;
         }
         else{
             createInfo.enabledLayerCount = 0; //no validation layers enabled
+
+            createInfo.pNext = nullptr; //do not point to debug messenger info
         }
 
         //create vulkan instance using the create info
@@ -200,12 +237,66 @@ class HelloTriangleApplication{
             pCallbackData->pObjects:
         */
         if(messageSeverity >= minimumDebugMessageSeverity){
-            std::cerr << "validation layer: " << pCallbackData->pMessage << std::endl;
+            std::cerr << "Validation layer: ";
+            switch(messageType){
+                case VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT:
+                    std::cerr << "GENERAL";
+                    break;
+                case VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT:
+                    std::cerr << "VALIDATION";
+                    break;
+                case VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT:
+                    std::cerr << "PERFORMANCE";
+                    break;
+                default:
+                    std::cerr << "Unrecognized message type";
+                    break;
+            };
+            std::cerr << "\n\t";
+            std::cerr << pCallbackData->pMessage << "\n";
+            std::cerr << "\tRelated num of objs: " << pCallbackData->objectCount << "\n";
+        }
+        else{
+            std::cout << "$\n";
         }
 
         return VK_FALSE;
     }
-    
+    //sets up debug messenger by binding the callback function to vulkan
+    void setupDebugMessenger(){
+        if(!enableValidationLayers){
+            return;
+        }
+        
+        //use populate function to fill the create info
+        VkDebugUtilsMessengerCreateInfoEXT createInfo;
+        populateDebugMessengerCreateInfo(createInfo);
+        //use our function to create
+        if(CreateDebugUtilsMessengerEXT(instance, &createInfo, nullptr, &debugMessenger) != VK_SUCCESS){
+            throw std::runtime_error("failed to set up debug messenger!");
+        }
+        else{
+            std::cout << "Debug messenger set up!\n";
+        }
+
+
+    }
+    //fills info to create debug messenger thing
+    void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo){
+        createInfo = {};
+        createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT; //type
+        //severity filters which types of messages the callback receives
+        createInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+        //make more verbose(optional)
+            //createInfo.messageSeverity |= VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT;
+        //type filters which message types the callback receives
+        //all types are enabled
+        createInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+        //pointer to callback function
+        createInfo.pfnUserCallback = debugCallback;
+        //whatever this pointer is will be passed to callback function
+        createInfo.pUserData = nullptr; // Optional
+    }
 
 
 
@@ -218,6 +309,8 @@ class HelloTriangleApplication{
     void initVulkan(){
         std::cout << ((enableValidationLayers) ? "Validation Layers Enabled\n" : "Validation Layers Disabled\n");
         createInstance();
+        setupDebugMessenger();
+
         
     }
     void mainLoop(){
@@ -228,6 +321,10 @@ class HelloTriangleApplication{
     void cleanup(){
         std::cout << "Cleaning up...\n";
 
+        //clean up debug messenger
+        if(enableValidationLayers){
+            DestroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
+        }
         //clean up vulkan instance
         vkDestroyInstance(instance, nullptr);
 
