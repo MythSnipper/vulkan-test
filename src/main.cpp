@@ -71,9 +71,19 @@ class HelloTriangleApplication{
     VkDebugUtilsMessengerEXT debugMessenger;
     //handle for physical device
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
+    //struct to store all queue families we need
+    struct QueueFamilyIndices{
+        //using optional so the value of 0 and unavailable graphics family can be distinguished
+        std::optional<uint32_t> graphicsFamily;
 
 
-
+        //check if all queue families actually exist
+        bool isComplete(){
+            return graphicsFamily.has_value();
+        }
+    };
+    
+    
 
 
     //creates GLFW window
@@ -239,7 +249,7 @@ class HelloTriangleApplication{
             pCallbackData->pObjects:
         */
         if(messageSeverity >= minimumDebugMessageSeverity){
-            std::cerr << "Validation layer: ";
+            std::cerr << "\tValidation layer: ";
             switch(messageType){
                 case VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT:
                     std::cerr << "GENERAL";
@@ -254,9 +264,9 @@ class HelloTriangleApplication{
                     std::cerr << "Unrecognized message type";
                     break;
             };
-            std::cerr << "\n\t";
+            std::cerr << "\n\t\t";
             std::cerr << pCallbackData->pMessage << "\n";
-            std::cerr << "\tRelated num of objs: " << pCallbackData->objectCount << "\n";
+            std::cerr << "\t\tRelated num of objs: " << pCallbackData->objectCount << "\n";
         }
         else{
             std::cout << "$\n";
@@ -363,23 +373,63 @@ class HelloTriangleApplication{
 
         int score = 0;
     
-        // Discrete GPUs have a significant performance advantage
+        //Discrete GPUs have a significant performance advantage
         if(deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU){
             score += 1000;
         }
     
-        // Maximum possible size of textures affects graphics quality
+        //Maximum possible size of textures affects graphics quality
         score += deviceProperties.limits.maxImageDimension2D;
     
-        // Application can't function without geometry shaders
+        //Application can't function without geometry shaders
         if(!deviceFeatures.geometryShader){
             return 0;
         }
-        
+
+        //Check device queue capability
+        QueueFamilyIndices indices = findQueueFamilies(device); 
+        //Application can't function without graphics command queue
+        if(!indices.isComplete()){
+            return 0;
+        }
+
         std::cout << "\t" << deviceProperties.deviceName << " | score: " << score << "\n";
 
         return score;
     }
+    //find the device's queue family that supports sending graphics commands
+    QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device){
+        QueueFamilyIndices indices;
+        //populate struct using information from device
+
+        //get number of queue families
+        uint32_t queueFamilyCount = 0;
+        vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);
+        //actually get the properties from the queue families
+        std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
+        vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies.data());
+
+        int i = 0;
+        for(const auto& queueFamily : queueFamilies){
+            //detect if the queue supports graphics commands
+            if(queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT){
+                indices.graphicsFamily = i;
+            }
+            //more checks if needed
+
+
+            //early exit optimization if all required queue families are already found
+            if(indices.isComplete()){
+                break;
+            }
+
+            i++;
+        }
+
+        return indices;
+    }
+
+
 
 
 
