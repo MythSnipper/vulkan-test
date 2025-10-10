@@ -69,6 +69,8 @@ class HelloTriangleApplication{
     VkInstance instance;
     //handle for debug callback function
     VkDebugUtilsMessengerEXT debugMessenger;
+    //handle for physical device
+    VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
 
 
 
@@ -297,7 +299,87 @@ class HelloTriangleApplication{
         //whatever this pointer is will be passed to callback function
         createInfo.pUserData = nullptr; // Optional
     }
+    //selects a viable physical graphics card
+    void pickPhysicalDevice(){
+        //query number of devices by passing nullptr
+        uint32_t deviceCount = 0;
+        vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
+        std::cout << deviceCount << " GPU" << ((deviceCount > 1) ? "s" : "") << " with vulkan support found!\n";
+        //if no gpu found exit
+        if(deviceCount == 0){
+            throw std::runtime_error("Failed to find GPUs with Vulkan support!");
+        }
+        
+        //actually get the devices information
+        std::vector<VkPhysicalDevice> devices(deviceCount);
+        vkEnumeratePhysicalDevices(instance, &deviceCount, devices.data());
 
+        std::cout << "Selecting GPU based on score: \n";
+        //use ordered map to sort candidates by increasing score
+        std::multimap<int, VkPhysicalDevice> candidates;
+        //get devices scores and add to map
+        for(const auto& device : devices){
+            int score = rateDeviceSuitability(device);
+            candidates.insert(std::make_pair(score, device));
+
+            //check if best candidate is even supported
+            //if supported, set physicalDevice to the best device's handle
+            if(candidates.rbegin()->first > 0){
+                physicalDevice = candidates.rbegin()->second;
+            }
+            else{
+                throw std::runtime_error("failed to find a suitable GPU!");
+            }
+        }
+        //print the selected device
+        //query the device for basic device properties
+        VkPhysicalDeviceProperties deviceProperties;
+        vkGetPhysicalDeviceProperties(physicalDevice, &deviceProperties);
+        std::cout << "Selected device: " << deviceProperties.deviceName;
+        const char* deviceTypes[] = {"(other)", 
+            "(integrated)",
+            "(dedicated)",
+            "(virtual)",
+            "(CPU)"
+        };
+        if((uint32_t)(deviceProperties.deviceType) <= 4){
+            std::cout << deviceTypes[(uint32_t)(deviceProperties.deviceType)];
+        }
+        else{
+            //unknown device type???
+            std::cout << "(" "???" ")";
+        }
+        std::cout << "\n";
+
+    }
+    //check if device is competent as well as how good the device is, 0 means unsupported, higher score is better
+    int rateDeviceSuitability(VkPhysicalDevice device){
+        //query the device for basic device properties
+        VkPhysicalDeviceProperties deviceProperties;
+        vkGetPhysicalDeviceProperties(device, &deviceProperties);
+        //for optional features like texture compression, 64 bit floats, and multi viewport rendering, query device features
+        VkPhysicalDeviceFeatures deviceFeatures;
+        vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
+
+        int score = 0;
+    
+        // Discrete GPUs have a significant performance advantage
+        if(deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU){
+            score += 1000;
+        }
+    
+        // Maximum possible size of textures affects graphics quality
+        score += deviceProperties.limits.maxImageDimension2D;
+    
+        // Application can't function without geometry shaders
+        if(!deviceFeatures.geometryShader){
+            return 0;
+        }
+        
+        std::cout << "\t" << deviceProperties.deviceName << " | score: " << score << "\n";
+
+        return score;
+    }
 
 
 
@@ -310,7 +392,7 @@ class HelloTriangleApplication{
         std::cout << ((enableValidationLayers) ? "Validation Layers Enabled\n" : "Validation Layers Disabled\n");
         createInstance();
         setupDebugMessenger();
-
+        pickPhysicalDevice();
         
     }
     void mainLoop(){
