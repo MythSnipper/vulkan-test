@@ -75,15 +75,29 @@ class HelloTriangleApplication{
     struct QueueFamilyIndices{
         //using optional so the value of 0 and unavailable graphics family can be distinguished
         std::optional<uint32_t> graphicsFamily;
+        std::optional<uint32_t> presentFamily;
 
 
         //check if all queue families actually exist
         bool isComplete(){
-            return graphicsFamily.has_value();
+            return graphicsFamily.has_value() && presentFamily.has_value();
         }
     };
-    
-    
+    //handle for logical device
+    VkDevice device;
+    //device features used
+    VkPhysicalDeviceFeatures deviceFeatures{};
+    //handle for the queue
+    VkQueue graphicsQueue; 
+    //window surface
+    VkSurfaceKHR surface;
+
+
+
+
+
+
+
 
 
     //creates GLFW window
@@ -218,7 +232,7 @@ class HelloTriangleApplication{
             }
 
             if(!layerFound){
-                std::cout << "Nuh uh\n";
+                std::cout << "Unsupported\n";
                 std::cout << "Validation layer support check failed!\n";
                 return false;
             }
@@ -238,6 +252,12 @@ class HelloTriangleApplication{
         //debug messenger extension
         if(enableValidationLayers){
             extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+        }
+        
+        //print
+        std::cout << "Required extensions: \n";
+        for(const char* extension : extensions){
+            std::cout << "\t" << extension << "\n";
         }
 
         return extensions;
@@ -428,8 +448,67 @@ class HelloTriangleApplication{
 
         return indices;
     }
+    //set up logical device from physical device
+    void createLogicalDevice(){
+        QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
+        //describes create info for queues used and number of queues used
+        VkDeviceQueueCreateInfo queueCreateInfo{};
+        queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+        queueCreateInfo.queueFamilyIndex = indices.graphicsFamily.value(); //make this the indices
+        queueCreateInfo.queueCount = 1; //number of queues
+        //assign priority to queue(0.0f - 1.0f)z
+        float queuePriority = 1.0f;
+        queueCreateInfo.pQueuePriorities = &queuePriority;
+        
+        //create info for logical device
+        VkDeviceCreateInfo createInfo{};
+        createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+        createInfo.pQueueCreateInfos = &queueCreateInfo; //pointers to queue create info
+        createInfo.queueCreateInfoCount = 1;
+
+        createInfo.pEnabledFeatures = &deviceFeatures;  //and used device features
+
+        //device extensions used
+        createInfo.enabledExtensionCount = 0;
+
+        //enabledLayerCount and ppEnabledLayerNames are ignored in newer vulkan implementations
+        //because vulkan made instance and device specific layers the same
+        //doing this for backwards compatibility
+        if(enableValidationLayers){
+            createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
+            createInfo.ppEnabledLayerNames = validationLayers.data();
+        }
+        else{
+            createInfo.enabledLayerCount = 0;
+        }
+
+        //create logical device
+        if(vkCreateDevice(physicalDevice, &createInfo, nullptr, &device) != VK_SUCCESS){
+            throw std::runtime_error("failed to create logical device!");
+        }
+        else{
+            std::cout << "Created logical device!\n";
+        }
+
+        //retrieve handles for each queue family
+        vkGetDeviceQueue(device, indices.graphicsFamily.value(), 0, &graphicsQueue);
 
 
+
+
+    }
+    //create surface using GLFW
+    void createSurface(){
+        //create surface using GLFW call
+        if(glfwCreateWindowSurface(instance, window, nullptr, &surface) != VK_SUCCESS){
+            throw std::runtime_error("failed to create window surface!");
+        }
+        else{
+            std::cout << "Created window surface using GLFW!\n";
+        }
+
+
+    }
 
 
 
@@ -442,8 +521,11 @@ class HelloTriangleApplication{
         std::cout << ((enableValidationLayers) ? "Validation Layers Enabled\n" : "Validation Layers Disabled\n");
         createInstance();
         setupDebugMessenger();
+        createSurface();
         pickPhysicalDevice();
-        
+        createLogicalDevice();
+
+
     }
     void mainLoop(){
         while(!glfwWindowShouldClose(window)){
@@ -452,6 +534,12 @@ class HelloTriangleApplication{
     }
     void cleanup(){
         std::cout << "Cleaning up...\n";
+        
+        //clean up logical device
+        vkDestroyDevice(device, nullptr);
+        
+        //clean up window surface
+        vkDestroySurfaceKHR(instance, surface, nullptr);
 
         //clean up debug messenger
         if(enableValidationLayers){
