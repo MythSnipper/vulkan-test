@@ -413,6 +413,14 @@ class HelloTriangleApplication{
             return 0;
         }
 
+        //Check if device supports all extensions
+        bool extensionsSupported = checkDeviceExtensionSupport(device);
+        if(!extensionsSupported){
+            return 0;
+        }
+
+
+
         std::cout << "\t" << deviceProperties.deviceName << " | score: " << score << "\n";
 
         return score;
@@ -521,7 +529,10 @@ class HelloTriangleApplication{
 
 
     }
-
+    //check if physical device supports required extensions
+    bool checkDeviceExtensionSupport(VkPhysicalDevice device){
+        
+    }
 
 
 
