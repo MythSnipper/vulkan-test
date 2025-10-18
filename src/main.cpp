@@ -95,6 +95,12 @@ class HelloTriangleApplication{
     const std::vector<const char*> deviceExtensions = {
         VK_KHR_SWAPCHAIN_EXTENSION_NAME //for swapchain
     };
+    //criterias needed to check if swap chain is supported with window surface
+    struct SwapChainSupportDetails{
+        VkSurfaceCapabilitiesKHR capabilities; //basic surface capabilities(min/max number of images in swap chain, min/max width of images)
+        std::vector<VkSurfaceFormatKHR> formats; //pixel format, color space
+        std::vector<VkPresentModeKHR> presentModes; //avilable presentation modes
+    };
 
 
 
@@ -419,6 +425,15 @@ class HelloTriangleApplication{
             return 0;
         }
 
+        //Check if device supports swap chain
+        bool swapChainAdequate = false;
+        SwapChainSupportDetails swapChainSupport = querySwapChainSupport(device);
+        //Adequate if formats and present modes are not empty
+        //right now we require one format and one present mode
+        swapChainAdequate = !swapChainSupport.formats.empty() && !swapChainSupport.presentModes.empty();
+        if(!swapChainAdequate){
+            return 0;
+        }
 
 
         std::cout << "\t" << deviceProperties.deviceName << " | score: " << score << "\n";
@@ -490,8 +505,9 @@ class HelloTriangleApplication{
 
         createInfo.pEnabledFeatures = &deviceFeatures;  //used device features
 
-        //device extensions used
-        createInfo.enabledExtensionCount = 0;
+        //device features enabled
+        createInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size()); //number of device extensions
+        createInfo.ppEnabledExtensionNames = deviceExtensions.data(); //point to the vector
 
         //enabledLayerCount and ppEnabledLayerNames are ignored in newer vulkan implementations
         //because vulkan made instance and device specific layers the same
@@ -531,7 +547,165 @@ class HelloTriangleApplication{
     }
     //check if physical device supports required extensions
     bool checkDeviceExtensionSupport(VkPhysicalDevice device){
+        //get extensions of the physical device
+        //first get the count
+        uint32_t extensionCount;
+        vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, nullptr);
+        //then store properties into a vector
+        std::vector<VkExtensionProperties> availableExtensions(extensionCount);
+        vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, availableExtensions.data());
+        //convert deviceExtensions to a set of strings, which is the list of required extensions
+        std::set<std::string> requiredExtensions(deviceExtensions.begin(), deviceExtensions.end());
+
+        //loop availableExtensions and remove from required list
+        for(const auto& extension : availableExtensions){
+            requiredExtensions.erase(extension.extensionName);
+
+            //optimization: if it is empty already return true
+            if(requiredExtensions.empty()){
+                return true;
+            }
+        }
+
+        //if the required list is empty then return true
+        return requiredExtensions.empty();
+    }
+    //populates the SwapChainSupportDetails struct
+    SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device){
+        SwapChainSupportDetails details;
+        //get physical device surface capabilities and store in the struct
+        vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, &details.capabilities);
+        //query for supported surface formats
+        //get count first
+        uint32_t formatCount;
+        vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, nullptr);
+        //then actually get the thing
+        if(formatCount != 0){
+            details.formats.resize(formatCount);
+            vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, details.formats.data());
+        }
+        //query for surface present modes
+        //get count first
+        uint32_t presentModeCount;
+        vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentModeCount, nullptr);
+        //then actually get the thing
+        if(presentModeCount != 0){
+            details.presentModes.resize(presentModeCount);
+            vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentModeCount, details.presentModes.data());
+        }
+
+        return details;
+    }
+    //choose best swapchain surface format from available formats
+    VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats){
+        std::cout << "Choosing best swapchain surface format:\n\t";
+        //find best format
+        for(const auto& availableFormat : availableFormats){
+            //best is 32bbp rgba, with SRGB support for colorspace
+            if(availableFormat.format == VK_FORMAT_B8G8R8A8_SRGB && availableFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR){
+                std::cout << "Optimal format found!\n";
+                return availableFormat;
+            }
+        }
+        //just use the first one because lazy to rate each format and get the second best one
+        std::cout << "Default format selected because optimal format not found!\n";
+        return availableFormats[0];
+    }
+    //choose best swapchain surface present mode from available modes
+    VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes){
+        /*
+        4 available present modes:
         
+        VK_PRESENT_MODE_IMMEDIATE_KHR: Images submitted by your application are transferred to the screen 
+            right away, which may result in tearing.
+        VK_PRESENT_MODE_FIFO_KHR: The swap chain is a queue where the display takes an image from the front 
+            of the queue when the display is refreshed and the program inserts rendered images at the back 
+                of the queue. If the queue is full then the program has to wait. This is most similar to 
+                    vertical sync as found in modern games. The moment that the display is refreshed is 
+                        known as "vertical blank".
+        VK_PRESENT_MODE_FIFO_RELAXED_KHR: This mode only differs from the previous one if the application is 
+            late and the queue was empty at the last vertical blank. Instead of waiting for the next vertical 
+                blank, the image is transferred right away when it finally arrives. This may result in 
+                    visible tearing.
+        VK_PRESENT_MODE_MAILBOX_KHR: This is another variation of the second mode. Instead of blocking the 
+            application when the queue is full, the images that are already queued are simply replaced with 
+                the newer ones. This mode can be used to render frames as fast as possible while still 
+                    avoiding tearing, resulting in fewer latency issues than standard vertical sync. This is 
+                        commonly known as "triple buffering", although the existence of three buffers alone 
+                            does not necessarily mean that the framerate is unlocked.
+        */
+        std::cout << "Selecting swapchain presentation mode: \n";
+        bool immediate = false; //proprity 4, may tear harder than niko
+        bool fifo = false; //priority 2, vsync
+        bool fifo_relaxed = false; //priority 3, may tear
+        bool mailbox = false; //priority 1, triple buffering
+        for(const auto& availablePresentMode : availablePresentModes){
+            immediate = immediate || (availablePresentMode == VK_PRESENT_MODE_IMMEDIATE_KHR);
+            fifo = fifo || (availablePresentMode == VK_PRESENT_MODE_FIFO_KHR);
+            fifo_relaxed = fifo_relaxed || (availablePresentMode == VK_PRESENT_MODE_FIFO_RELAXED_KHR);
+            mailbox = mailbox || (availablePresentMode == VK_PRESENT_MODE_MAILBOX_KHR);
+        }
+        std::cout << "\t";
+        if(mailbox){
+            std::cout << "Mailbox(triple buffering) presentation mode\n";
+            return VK_PRESENT_MODE_MAILBOX_KHR;
+        }
+        else if(fifo){
+            std::cout << "FIFO(vsync) presentation mode\n";
+            return VK_PRESENT_MODE_FIFO_KHR;
+        }
+        else if(fifo_relaxed){
+            std::cout << "FIFO relaxed presentation mode(may cause screen tearing)\n";
+            return VK_PRESENT_MODE_FIFO_RELAXED_KHR;
+        }
+        else{
+            std::cout << "Immediate presentation mode(may cause screen tearing)\n";
+            return VK_PRESENT_MODE_IMMEDIATE_KHR;
+        }
+
+    }
+    //choose best swap extent(resolution of swapchain images
+    VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities){
+        if(capabilities.currentExtent.width != std::numeric_limits<uint32_t>::max()){
+            return capabilities.currentExtent;
+        }
+        else{
+            int width, height;
+            glfwGetFramebufferSize(window, &width, &height);
+    
+            VkExtent2D actualExtent = {
+                static_cast<uint32_t>(width),
+                static_cast<uint32_t>(height)
+            };
+            //clamp values to the min and max range of the implementation
+            actualExtent.width = std::clamp(actualExtent.width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
+            actualExtent.height = std::clamp(actualExtent.height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
+    
+            return actualExtent;
+        }
+    }
+    //create swap chain
+    void createSwapChain(){
+        ///query swap chain support(it's a struct)
+        SwapChainSupportDetails swapChainSupport = querySwapChainSupport(physicalDevice);
+        //best of surface format, present mode, extent
+        VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(swapChainSupport.formats);
+        VkPresentModeKHR presentMode = chooseSwapPresentMode(swapChainSupport.presentModes);
+        VkExtent2D extent = chooseSwapExtent(swapChainSupport.capabilities);
+
+        //how many images to have in the swapchain
+        //minimum is too shit so we add 1 to it to make it better
+        uint32_t imageCount = swapChainSupport.capabilities.minImageCount;
+        //if max is not infinite(if it's infinite it's 0) and the count is less than max
+        if(swapChainSupport.capabilities.maxImageCount > 0 && imageCount > swapChainSupport.capabilities.maxImageCount){
+            //take more resources, basically
+            imageCount = swapChainSupport.capabilities.maxImageCount;
+        }
+        std::cout << "Selected swapchain image count: " << imageCount << "\n";
+        std::cout << "Max " << swapChainSupport.capabilities.maxImageCount;
+        std::cout << "Min " << swapChainSupport.capabilities.minImageCount << "\n";
+
+
     }
 
 
@@ -545,6 +719,7 @@ class HelloTriangleApplication{
         createSurface();
         pickPhysicalDevice();
         createLogicalDevice();
+        createSwapChain();
 
     }
     void mainLoop(){
