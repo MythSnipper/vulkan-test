@@ -703,7 +703,20 @@ class HelloTriangleApplication{
         }
         std::cout << "Selected swapchain image count: " << imageCount << "\n";
         std::cout << "Max " << swapChainSupport.capabilities.maxImageCount;
-        std::cout << "Min " << swapChainSupport.capabilities.minImageCount << "\n";
+        std::cout << " Min " << swapChainSupport.capabilities.minImageCount << "\n";
+
+        //create info for swap chain
+        VkSwapchainCreateInfoKHR createInfo{};
+        createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+        createInfo.surface = surface; //surface the swap chain should be tied to
+
+        createInfo.minImageCount = imageCount;
+        createInfo.imageFormat = surfaceFormat.format;
+        createInfo.imageColorSpace = surfaceFormat.colorSpace;
+        createInfo.imageExtent = extent;
+        createInfo.imageArrayLayers = 1; //amount of layers each image consists of
+        createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT; //
+
 
 
     }
